@@ -1,5 +1,5 @@
-import re 
-import requests
+import re
+import requests 
 import fileinput
 import os
 
@@ -16,25 +16,40 @@ with open(file_path) as f:
             offset_list.append({"name": name, "keyname": name})
 
 def get_new_offsets():
-    response = requests.get(url)
+    
+    response = requests.get(url)  
     new_offsets = {}
+    missing_offsets = []
+    
     if response.status_code == 200:
+
         for offset in offset_list:
-            section = offset["section"]
             keyname = offset["keyname"]
-            pattern = rf"\[{section}\][\s\S]*?{keyname}=([\w]+)"
+            pattern = rf"\w+{keyname}=([\w]+)"
             match = re.search(pattern, response.text)
+
             if match:
                 new_offsets[offset["name"]] = match.group(1)
-    return new_offsets
+            else:
+                missing_offsets.append(offset["name"])
+                
+    return new_offsets, missing_offsets
 
 def update_offsets(new_offsets):
+    
     for name, value in new_offsets.items():
         pattern = rf"#define {name}\s+([^\r\n]*)"
         replacement = f"#define {name} {value}"
         fileinput.FileInput(file_path, inplace=True, backup='.bak').re_sub(pattern, replacement)
+        
     os.remove(file_path + ".bak")
-
+        
 if __name__ == "__main__":
-    new_offsets = get_new_offsets()
+    
+    new_offsets, missing_offsets = get_new_offsets()
+    
+    if missing_offsets:
+        with open("Errors_offsets", "w") as f:
+            f.write("\n".join(missing_offsets))
+            
     update_offsets(new_offsets)
