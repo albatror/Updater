@@ -5,6 +5,7 @@ import os
 
 url = "https://pastebin.com/raw/tQ3R7NJq"
 file_path = "./offsets.h"
+output_file = "offsets_changed.txt"
 
 # Function to extract GameVersion from the update file
 def get_game_version_from_update():
@@ -30,14 +31,28 @@ def update_game_version(game_version):
     # Remove the backup file
     os.remove(backup_file_path)
 
+# Function to check for changes in the offsets
+def check_for_changes(old_offsets, new_offsets):
+    changed_offsets = {}
+    unchanged_offsets = {}
+
+    for name, value in old_offsets.items():
+        if name in new_offsets and value != new_offsets[name]:
+            changed_offsets[name] = (value, new_offsets[name])
+        else:
+            unchanged_offsets[name] = value
+
+    return changed_offsets, unchanged_offsets
+
 # Parse offsets.h to get existing offsets
-offset_list = []
+offset_list = {}
 with open(file_path) as f:
     for line in f:
         m = re.match(r"#define (\w+) (0x[0-9A-Fa-f]+)", line)
         if m:
             name = m.group(1)
-            offset_list.append({"name": name, "keyname": name})
+            value = m.group(2)
+            offset_list[name] = value
 
 def get_new_offsets():
     response = requests.get(url)  
@@ -46,14 +61,14 @@ def get_new_offsets():
     
     if response.status_code == 200:
         for offset in offset_list:
-            keyname = offset["keyname"]
+            keyname = offset_list[offset]
             pattern = rf"\w+{keyname}=([\w]+)"
             match = re.search(pattern, response.text)
 
             if match:
-                new_offsets[offset["name"]] = match.group(1)
+                new_offsets[offset] = match.group(1)
             else:
-                missing_offsets.append(offset["name"])
+                missing_offsets.append(offset)
                 
     return new_offsets, missing_offsets
 
@@ -81,10 +96,27 @@ if __name__ == "__main__":
         update_game_version(game_version_from_update)
         print(f"GameVersion updated to V{game_version_from_update}")
 
+    old_offsets = offset_list.copy()
     new_offsets, missing_offsets = get_new_offsets()
-    
+
     if missing_offsets:
         with open("Errors_offsets", "w") as f:
             f.write("\n".join(missing_offsets))
-            
+
+    # Check for changes in offsets
+    changed_offsets, unchanged_offsets = check_for_changes(old_offsets, new_offsets)
+
+    # Create and write changes to offsets_changed.txt
+    with open(output_file, "w") as f:
+        f.write("Offsets that have changed:\n")
+        for name, (old_value, new_value) in changed_offsets.items():
+            f.write(f"{name}: {old_value} -> {new_value}\n")
+
+        f.write("\nOffsets that remain unchanged:\n")
+        for name, value in unchanged_offsets.items():
+            f.write(f"{name}: {value}\n")
+
+    # Update the offsets in the offsets.h file
     update_offsets(new_offsets)
+
+    print("Changes saved to offsets_changed.txt.")
