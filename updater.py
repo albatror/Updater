@@ -3,7 +3,7 @@ import re
 import fileinput
 import os
 
-URL = "https://pastebin.com/tLwBtCwA"
+URL = "https://pastebin.com/raw/tQ3R7NJq"
 OFFSET_LIST = [
     {"name": "OFFSET_ENTITYLIST", "section": "Miscellaneous", "keyname": "cl_entitylist", "value": ""},
     {"name": "OFFSET_LOCAL_ENT", "section": "Globals", "keyname": ".?AVC_GameMovement@@", "value": ""},
