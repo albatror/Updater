@@ -106,6 +106,10 @@ if __name__ == "__main__":
     # Check for changes in offsets
     changed_offsets, unchanged_offsets = check_for_changes(old_offsets, new_offsets)
 
+print("New Offsets:", new_offsets)
+print("Changed Offsets:", changed_offsets)
+print("Unchanged Offsets:", unchanged_offsets)
+
     # Create and write changes to offsets_changed.txt
     with open(output_file, "w") as f:
         f.write("Offsets that have changed:\n")
