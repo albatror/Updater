@@ -41,7 +41,7 @@ OFFSET_LIST = [
     {"name": "OFFSET_THIRDPERSON_SV", "section": "[RecvTable.DT_LocalPlayerExclusive]", "keyname": "m_thirdPersonShoulderView", "value": "0x36e8"},
     {"name": "OFFSET_OBSERVER_MODE", "section": "[RecvTable.DT_LocalPlayerExclusive]", "keyname": "m_iObserverMode", "value": "0x34f4"},
     {"name": "OFFSET_OBSERVING_TARGET", "section": "[RecvTable.DT_LocalPlayerExclusive]", "keyname": "m_hObserverTarget", "value": "0x3500"},
-    {"name": "OFFSET_WEAPON", "section": "[RecvTable.DT_BaseCombatCharacter]", "keyname": "m_latestPrimaryWeapons", "value":
+    {"name": "OFFSET_WEAPON", "section": "[RecvTable.DT_BaseCombatCharacter]", "keyname": "m_latestPrimaryWeapons", "value": "0x1a14"},
     {"name": "OFFSET_AMMO", "section": "[DataMap.CWeaponX]", "keyname": "m_ammoInClip", "value": "0x1660"},
     {"name": "OFFSET_ITEM_ID", "section": "[RecvTable.DT_PropSurvival]", "keyname": "m_customScriptInt", "value": "0x1638"},
     {"name": "OFFSET_ITEM_GLOW", "section": "[RecvTable.DT_HighlightSettings]", "keyname": "m_highlightFunctionBits", "value": "0x02c0"},
@@ -60,7 +60,7 @@ OFFSET_LIST = [
     {"name": "OFFSET_GLOW_FADE", "section": "[RecvTable.DT_HighlightSettings]", "keyname": "m_highlightParams", "value": "0x388"},  # Extended offsets for Additional Glow Features
     {"name": "OFFSET_GLOW_T1", "section": "[RecvTable.DT_HighlightSettings]", "keyname": "m_highlightParams", "value": "0x262"},  # 16256 = enabled, 0 = disabled
     {"name": "OFFSET_GLOW_T2", "section": "[RecvTable.DT_HighlightSettings]", "keyname": "m_highlightParams", "value": "0x2dc"},  # 1193322764 = enabled, 0 = disabled
-]
+ ]
 FILE_PATH = "./offsets.h"
 
 
