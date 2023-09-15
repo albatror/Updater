@@ -25,7 +25,7 @@ OFFSET_LIST = OFFSET_LIST = [
     {"name": "OFFSET_AIMPUNCH", "section": "DataMap.C_Player", "keyname": "m_currentFrameLocalPlayer.m_vecPunchWeapon_Angle", "value": ""},
     #{"name": "OFFSET_VIEWMODEL", "section": "[RecvTable.DT_Player]", "keyname": "m_hViewModels", "value": ""},
     #{"name": "OFFSET_GAMEMODE", "section": "[ConVars]", "keyname": "mp_gamemode", "value": ""},
-    #{"name": "OFFSET_THIRDPERSON", "section": "[ConVars]", "keyname": "thirdperson_override", "value": ""},
+    {"name": "OFFSET_THIRDPERSON", "section": "[RecvTable.DT_LocalPlayerExclusive]", "keyname": "m_thirdPersonShoulderView", "value": ""},
     #{"name": "OFFSET_TIMESCALE", "section": "[ConVars]", "keyname": "host_timescale", "value": ""},
     {"name": "OFFSET_HEALTH", "section": "[RecvTable.DT_AI_BaseNPC]", "keyname": "m_iHealth", "value": ""},
     {"name": "OFFSET_SHIELD_TYPE", "section": "[RecvTable.DT_AI_BaseNPC]", "keyname": "m_armorType", "value": ""},
@@ -92,15 +92,15 @@ def get_replacement(offset_name, offset_value):
     if offset_name == "OFFSET_LOCAL_ENT":
         if offset_value == "":
             return False
-        return f"#define {offset_name} ({offset_value} + 0x8)"
+        return f"#define {offset_name} {offset_value} + 0x8"
     elif offset_name == "OFFSET_YAW":
-        return f"#define {offset_name} ({offset_value} - 0x8)"
+        return f"#define {offset_name} {offset_value} - 0x8"
     elif offset_name == "OFFSET_BONES":
-        return f"#define {offset_name} ({offset_value} + 0x48)"
+        return f"#define {offset_name} {offset_value} + 0x48"
     elif offset_name == "OFFSET_VIEWANGLES":
-        return f"#define {offset_name} ({offset_value} - 0x14)"
+        return f"#define {offset_name} {offset_value} - 0x14"
     elif offset_name == "OFFSET_ZOOM_FOV":
-        return f"#define {offset_name} ({offset_value} + 0xb8)"
+        return f"#define {offset_name} {offset_value} + 0xb8"
     else:
         return f"#define {offset_name} {offset_value}"
 
@@ -109,9 +109,17 @@ def replace_macro(filepath, macro_name, new_value):
     replacement = get_replacement(macro_name, new_value)
 
     with fileinput.FileInput(filepath, inplace=True, backup='.bak') as file:
+        updated = False  # Flag to check if the macro was updated
         for line in file:
-            line = re.sub(pattern, replacement, line.rstrip())
+            if re.match(pattern, line):
+                # If the macro exists, update it
+                line = re.sub(pattern, replacement, line.rstrip())
+                updated = True
             print(line)
+
+        if not updated:
+            # If the macro didn't exist, append it to the end of the file
+            print(replacement)
 
     # Remove the backup file
     backup_file_path = filepath + ".bak"
@@ -132,6 +140,11 @@ def update_game_version(filepath, new_version):
     os.remove(backup_file_path)
 
 if __name__ == "__main__":
+    # Create the 'offsets.h' file if it doesn't exist
+    if not os.path.exists(FILE_PATH):
+        with open(FILE_PATH, 'w') as f:
+            pass  # This creates an empty file
+
     match_values()
     for offset in OFFSET_LIST:
         replace_macro(FILE_PATH, offset["name"], offset["value"])
