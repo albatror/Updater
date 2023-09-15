@@ -3,8 +3,11 @@ import re
 import fileinput
 import os
 
+# Provide new URL of last OFFSETS's dump
 URL = "https://pastebin.com/raw/tQ3R7NJq"
-OFFSET_LIST = [
+
+# Define the offsets in a list of dictionaries as in your original code.
+OFFSET_LIST = OFFSET_LIST = [
     {"name": "OFFSET_LOCAL_ENT", "section": "Miscellaneous", "keyname": "LocalPlayer", "value": ""},
     {"name": "OFFSET_INPUTSYSTEM", "section": "Miscellaneous", "keyname": "InputSystem", "value": ""},
     {"name": "OFFSET_GLOBALVAR", "section": "Miscellaneous", "keyname": "GlobalVars", "value": ""},
@@ -21,16 +24,16 @@ OFFSET_LIST = [
     {"name": "OFFSET_ZOOMING", "section": "DataMap.C_Player", "keyname": "m_bZooming", "value": ""},
     {"name": "OFFSET_YAW", "section": "DataMap.C_Player", "keyname": "m_currentFramePlayer.m_ammoPoolCount", "value": ""},
     {"name": "OFFSET_AIMPUNCH", "section": "DataMap.C_Player", "keyname": "m_currentFrameLocalPlayer.m_vecPunchWeapon_Angle", "value": ""},
-    {"name": "OFFSET_VIEWMODEL", "section": "[DataMap.C_Player]", "keyname": "m_hViewModels", "value": ""},
-    {"name": "OFFSET_GAMEMODE", "section": "[ConVars]", "keyname": "mp_gamemode", "value": " + 0x58"},
-    {"name": "OFFSET_THIRDPERSON", "section": "[ConVars]", "keyname": "thirdperson_override", "value": " + 0x6c"},
-    {"name": "OFFSET_TIMESCALE", "section": "[ConVars]", "keyname": "host_timescale", "value": ""},
+    #{"name": "OFFSET_VIEWMODEL", "section": "[RecvTable.DT_Player]", "keyname": "m_hViewModels", "value": ""},
+    #{"name": "OFFSET_GAMEMODE", "section": "[ConVars]", "keyname": "mp_gamemode", "value": ""},
+    #{"name": "OFFSET_THIRDPERSON", "section": "[ConVars]", "keyname": "thirdperson_override", "value": ""},
+    #{"name": "OFFSET_TIMESCALE", "section": "[ConVars]", "keyname": "host_timescale", "value": ""},
     {"name": "OFFSET_HEALTH", "section": "[RecvTable.DT_Player]", "keyname": "m_iHealth", "value": ""},
     {"name": "OFFSET_SHIELD_TYPE", "section": "[RecvTable.DT_Player]", "keyname": "m_armorType", "value": ""},
     {"name": "OFFSET_LIFE_STATE", "section": "[RecvTable.DT_Player]", "keyname": "m_lifeState", "value": ""},
     {"name": "OFFSET_BLEED_OUT_STATE", "section": "[RecvTable.DT_Player]", "keyname": "m_bleedoutState", "value": ""},
-    {"name": "OFFSET_VIEWANGLES", "section": "[RecvTable.DT_Player]", "keyname": "m_ammoPoolCapacity", "value": " - 0x14"},
-    {"name": "OFFSET_BONES", "section": "[RecvTable.DT_BaseAnimating]", "keyname": "m_nForceBone", "value": " + 0x48"},
+    {"name": "OFFSET_VIEWANGLES", "section": "[RecvTable.DT_Player]", "keyname": "m_ammoPoolCapacity", "value": ""},
+    {"name": "OFFSET_BONES", "section": "[RecvTable.DT_BaseAnimating]", "keyname": "m_nForceBone", "value": ""},
     {"name": "OFFSET_TEAM", "section": "[RecvTable.DT_BaseEntity]", "keyname": "m_iTeamNum", "value": ""},
     {"name": "OFFSET_SHIELD", "section": "[RecvTable.DT_BaseEntity]", "keyname": "m_shieldHealth", "value": ""},
     {"name": "OFFSET_SHIELD_MAX", "section": "[RecvTable.DT_BaseEntity]", "keyname": "m_shieldHealthMax", "value": ""},
@@ -48,9 +51,11 @@ OFFSET_LIST = [
     {"name": "OFFSET_ITEM_GLOW", "section": "[RecvTable.DT_HighlightSettings]", "keyname": "m_highlightFunctionBits", "value": ""},
     {"name": "OFFSET_IN_JUMP", "section": "[Buttons]", "keyname": "in_jump", "value": ""},
     {"name": "OFFSET_IN_DUCK", "section": "[Buttons]", "keyname": "in_duck", "value": ""},
-    {"name": "OFFSET_BULLET_SPEED", "section": "[RecvTable.CWeaponX]", "keyname": "m_flProjectileSpeed", "value": "OFFSET_VISIBLE_TIME + 0x04cc"},
-    {"name": "OFFSET_BULLET_GRAVITY", "section": "[RecvTable.CWeaponX]", "keyname": "m_flProjectileScale", "value": "OFFSET_VISIBLE_TIME + 0x04d4"},  # CWeaponX!m_flProjectileScale=0x1f20
+    {"name": "OFFSET_BULLET_SPEED", "section": "[RecvTable.CWeaponX]", "keyname": "m_flProjectileSpeed", "value": ""},
+    {"name": "OFFSET_BULLET_GRAVITY", "section": "[RecvTable.CWeaponX]", "keyname": "m_flProjectileScale", "value": ""},
 ]
+
+# Define the path to the output file
 FILE_PATH = "./offsets.h"
 
 def read_webpage(url):
@@ -58,7 +63,7 @@ def read_webpage(url):
         response = requests.get(url)
         response.raise_for_status()
         return response.text
-    except (requests.RequestException, ValueError) as e:
+    except requests.RequestException as e:
         print(f"Error fetching webpage: {e}")
         return None
 
@@ -67,18 +72,23 @@ def match_values():
     if input_string is None:
         return
 
+    # Print the input_string for debugging
+    print("Webpage Source:")
+    print(input_string)
+
     for offset in OFFSET_LIST:
-        section = offset["section"]
         keyname = offset["keyname"]
-        pattern = rf"\[{section}\][\s\S]*?{keyname}=(\w+)"
+        pattern = rf"{re.escape(keyname)}=(\w+)"
+        print(f"Matching pattern: {pattern}")
         match = re.search(pattern, input_string)
 
         if match:
             value = match.group(1)
-            print(f"Get {offset.get('name')} == {value}")
+            print(f"Get {offset['name']} == {value}")
             offset["value"] = value
         else:
             print(f"!!!!!!!!!!Not Get {offset['name']} !!!!!!!!!!!")
+
 
 def get_replacement(offset_name, offset_value):
     if offset_name == "OFFSET_LOCAL_ENT":
@@ -99,7 +109,7 @@ def replace_macro(filepath, macro_name, new_value):
             line = re.sub(pattern, replacement, line.rstrip())
             print(line)
 
-    # remove bak
+    # Remove the backup file
     backup_file_path = filepath + ".bak"
     os.remove(backup_file_path)
 
@@ -113,7 +123,7 @@ def update_game_version(filepath, new_version):
             line = re.sub(version_pattern, replacement, line.rstrip())
             print(line)
 
-    # remove bak
+    # Remove the backup file
     backup_file_path = filepath + ".bak"
     os.remove(backup_file_path)
 
@@ -121,4 +131,4 @@ if __name__ == "__main__":
     match_values()
     for offset in OFFSET_LIST:
         replace_macro(FILE_PATH, offset["name"], offset["value"])
-    update_game_version(FILE_PATH, "v3.0.35.21")
+    update_game_version(FILE_PATH, "")
