@@ -142,6 +142,14 @@ def write_offsets_to_file(filepath):
         f.write("#define GLOW_COLOR_B  GLOW_COLOR_G + 0x04\n")
         f.write("\n")
         f.write("#endif\n")
+        
+# URL from user at start - if no link, it will take the original url (on top)
+def get_user_url():
+    user_url = input("Entrez l'adresse URL (ou appuyez sur Entrée pour utiliser la valeur par défaut): ").strip()
+    if user_url:
+        return user_url
+    else:
+        return URL
 
 if __name__ == "__main__":
     # Define the path to the output file
