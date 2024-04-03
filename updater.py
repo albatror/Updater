@@ -84,5 +84,5 @@ if __name__ == '__main__':
         offset_ini_path = sys.argv[2]
         update_offsets(offset_h_path, offset_ini_path)
     else:
-        print("Requires two parameters.\neg.>py update.py offsets.h offsets.ini")
+        print("Requires two parameters.\neg.>py updater.py offsets.h offsets.ini")
 
