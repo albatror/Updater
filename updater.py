@@ -24,52 +24,62 @@ date = current_date.strftime("%Y/%m/%d")
 
 def update_offsets(offset_h_path, offset_ini_path):
 
-    offset_pattern = re.compile(r'0x[\dA-Fa-f]+')  #
-    date_pattern = re.compile(r'updated (\d{1,4}/\d{1,4}/\d{1,4})')  #
-    #offset.ini
+    offset_pattern = re.compile(r'0x[\dA-Fa-f]+')
+    date_pattern = re.compile(r'updated (\d{1,4}/\d{1,4}/\d{1,4})')
+
+    # Load offset.ini
     dumpFile = configparser.ConfigParser(strict=False)
     dumpFile.read(offset_ini_path)
 
-    #offset.h
+    # Read offset.h
     with open(offset_h_path, 'r') as headFile:
         offset_h_content = headFile.read()
 
-    #
     lines = offset_h_content.split('\n')
 
     for i in range(len(lines)):
         keywords = re.findall(r'//\s*(\S+)', lines[i])
         if keywords and re.match(r"\[", keywords[0]):
-            comment_pattern = re.compile(r'\[(.+?)\]\.(.+)')  # [xxx].xxx
+            comment_pattern = re.compile(r'\[(.+?)\]\.(.+)')  # [Section].Key
             comment_match = comment_pattern.search(keywords[0])
-            section, keyword = comment_match.group(1), comment_match.group(2)
-            if section in dumpFile and keyword in dumpFile[section]:
-                value = dumpFile[section][keyword]  #
-                lines[i] = re.sub(offset_pattern, value, lines[i], count=1)
-                lines[i] = re.sub(date_pattern, "updated "+date, lines[i], count=1)
+            if comment_match:
+                section, keyword = comment_match.group(1), comment_match.group(2)
+                if section in dumpFile and keyword in dumpFile[section]:
+                    value = dumpFile[section][keyword]
+                    lines[i] = re.sub(offset_pattern, value, lines[i], count=1)
+                    lines[i] = re.sub(date_pattern, "updated " + date, lines[i], count=1)
+                else:
+                    notFindLines.append(lines[i])
             else:
-                notFindLines.append(lines[i])
+                print(ConsoleColors.YELLOW + f"Unmatched pattern in comment: {keywords[0]}" + ConsoleColors.RESET)
+                unrecognizedLines.append(lines[i])
         elif not keywords:
             pass
         elif keywords[0] == "Date":
             lines[i] = f"//Date {date}"
         elif keywords[0] == "GameVersion":
-            lines[i] = f"//GameVersion = {dumpFile['Miscellaneous']['GameVersion']}"
+            try:
+                lines[i] = f"//GameVersion = {dumpFile['Miscellaneous']['GameVersion']}"
+            except KeyError:
+                notFindLines.append(lines[i])
         else:
             if lines[i]:
                 unrecognizedLines.append(lines[i])
-    #
+
+    # Write back updated lines
     updated_content = '\n'.join(lines)
     with open(offset_h_path, 'w') as headFile:
         headFile.write(updated_content)
 
     print(ConsoleColors.GREEN + "Update completed!" + ConsoleColors.RESET)
-    if notFindLines is not None or unrecognizedLines is not None:
+    
+    if notFindLines or unrecognizedLines:
         print(ConsoleColors.RED + "Some offsets need to be updated manually" + ConsoleColors.RESET)
+
     if notFindLines:
-        print(ConsoleColors.RED + "NotFindLines Lines:")
+        print(ConsoleColors.RED + "Not Found Lines:")
         for line in notFindLines:
-            print(line + ConsoleColors.RESET)
+            print(ConsoleColors.RED + line + ConsoleColors.RESET)
 
     if unrecognizedLines:
         print(ConsoleColors.YELLOW + "Unrecognized Lines:")
@@ -84,5 +94,4 @@ if __name__ == '__main__':
         offset_ini_path = sys.argv[2]
         update_offsets(offset_h_path, offset_ini_path)
     else:
-        print("Requires two parameters.\neg.>py updater.py offsets.h offsets.ini")
-
+        print("Requires two parameters.\nExample: >py updater.py offsets.h offsets.ini")
