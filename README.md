@@ -1,7 +1,7 @@
 # Offset Updater (`updater.py`) - Apex L.
 
 ## Purpose
-This script is designed to update offset values and related information within a C/C++ header file (typically named `offsets.h`) using values sourced from an INI configuration file (typically `offsets.ini`). It is primarily aimed at developers, such as game cheat developers, who need to regularly update memory offsets or other version-dependent constants in their source code.
+This script is designed to update offset values and related information within a C/C++ header file (typically named `offsets.h`) using values sourced from an INI configuration file (typically `offsets.ini`). It is primarily aimed at developers, who need to regularly update memory offsets or other version-dependent constants in their source code.
 
 ## Features
 *   **Interactive Prompts:** The script interactively guides the user to locate necessary files (`offsets.h`, `offsets.ini`) if they are not found in the default locations (i.e., the same directory as the script).
