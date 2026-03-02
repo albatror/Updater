@@ -10,7 +10,7 @@ import os # For path manipulation if needed, and for os.path.exists
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 try:
-    from updater import process_offsets_update, load_offsets_ini, ConsoleColors
+    from updater import process_offsets_update, load_offsets_ini, ConsoleColors, find_offset_in_config
 except ModuleNotFoundError as e:
     print(f"Failed to import from updater: {e}. Ensure updater.py is in the Python path or same directory.")
     sys.exit(1)
@@ -144,6 +144,53 @@ Dump completed
                 self.assertEqual(config["RecvTable.DT_BaseEntity"]["m_iTeamNum"], "0x334")
                 self.assertIn("WeaponSettings", config)
                 self.assertEqual(config["WeaponSettings"]["ammo_clip_size"], "0x8FC")
+
+    def test_load_malformed_ini_success(self):
+        malformed_ini = """
+[Mics]
+CHLClient = 0x29bb748
+
+[RecvTable]
+[]
+ = 0x0
+ValidKey = 0x123
+"""
+        with mock.patch('updater.open', new_callable=mock.mock_open, read_data=malformed_ini):
+            with mock.patch('updater.os.path.exists', return_value=True):
+                config = load_offsets_ini("malformed.ini")
+                self.assertIsNotNone(config)
+                self.assertIn("Miscellaneous", config)
+                self.assertEqual(config["Miscellaneous"]["chlclient"], "0x29bb748")
+                self.assertIn("RecvTable", config)
+                self.assertEqual(config["RecvTable"]["validkey"], "0x123")
+                # Any key starting with malformedkey is fine
+                self.assertTrue(any(k.startswith("malformedkey") for k in config["RecvTable"]))
+
+    def test_fuzzy_suffix_match_success(self):
+        # Setup data with cut-off names
+        ini_data = {
+            "Miscellaneous": {
+                "lastVisibleTime": "0x1234"
+            },
+            "RecvTable": {
+                "m_iHealth": "0x5678"
+            }
+        }
+
+        # Test finding cut-off key
+        # Header has "[Miscellaneous].CPlayer!lastVisibleTime"
+        val = find_offset_in_config(ini_data, "Miscellaneous", "CPlayer!lastVisibleTime")
+        self.assertEqual(val, "0x1234")
+
+        # Test finding cut-off section and key
+        # Dumper has "aracterFog" instead of "characterFog"
+        ini_data_cutoff = {
+            "aracterFog": {
+                "distColorStr": "0x999"
+            }
+        }
+        val = find_offset_in_config(ini_data_cutoff, "characterFog", "distColorStr")
+        self.assertEqual(val, "0x999")
 
     # --- Tests for process_offsets_update ---
     def test_process_update_logic(self):

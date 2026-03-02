@@ -116,9 +116,16 @@ def load_offsets_ini(file_path_or_url):
     # Fallback to INI
     try:
         # Pre-process for weird INI quirks like "[]"
-        processed_content = content.replace("\n[]", "\n[EmptySection]")
+        processed_content = content.replace("\n[]", "\n")
         # Handle sections with spaces like "[Mics] "
         processed_content = re.sub(r'\[\s*(.+?)\s*\]', r'[\1]', processed_content)
+
+        # Handle lines starting with " = " (missing key)
+        lines = processed_content.splitlines()
+        for i, line in enumerate(lines):
+            if re.match(r'^\s*=', line):
+                lines[i] = f"MalformedKey_{i}{line}"
+        processed_content = "\n".join(lines)
 
         parser = configparser.ConfigParser(strict=False, interpolation=None)
         parser.read_string(processed_content)
@@ -165,16 +172,35 @@ def find_offset_in_config(config, section_name, key_name):
         normalized_target_section = normalize_name(section_name)
         normalized_target_key = normalize_name(kt)
 
-        # Exact match attempt
-        if section_name in config and kt in config[section_name]:
-            return config[section_name][kt]
-
-        # Fuzzy matching
+        # Find potential matching sections (handle cut-off section names)
+        matching_sections = []
         for config_section in config:
-            if normalize_name(config_section) == normalized_target_section:
-                for config_key in config[config_section]:
-                    if normalize_name(config_key) == normalized_target_key:
-                        return config[config_section][config_key]
+            norm_config_section = normalize_name(config_section)
+            if norm_config_section == normalized_target_section:
+                matching_sections.append(config_section)
+            elif len(norm_config_section) >= 4 and (normalized_target_section.endswith(norm_config_section) or norm_config_section.endswith(normalized_target_section)):
+                matching_sections.append(config_section)
+            elif "." in section_name and normalize_name(section_name.split(".")[0]) == norm_config_section:
+                matching_sections.append(config_section)
+
+        for cs in matching_sections:
+            best_suffix_match = None
+            # Try exact match within section
+            if kt in config[cs]:
+                return config[cs][kt]
+
+            for config_key in config[cs]:
+                norm_config_key = normalize_name(config_key)
+                if norm_config_key == normalized_target_key:
+                    return config[cs][config_key]
+
+                # Suffix matching for cut-off keys
+                if len(norm_config_key) >= 3:
+                    if normalized_target_key.endswith(norm_config_key) or norm_config_key.endswith(normalized_target_key):
+                        best_suffix_match = config[cs][config_key]
+
+            if best_suffix_match:
+                return best_suffix_match
     return None
 
 def process_offsets_update(offset_h_lines, dump_file_config, current_date_str_param):
