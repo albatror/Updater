@@ -1,5 +1,6 @@
 import re
 import configparser
+import json
 from datetime import datetime
 import sys
 import requests 
@@ -21,56 +22,119 @@ current_date = datetime.now()
 date_str = current_date.strftime("%Y/%m/%d")
 
 
+def normalize_name(name):
+    """Normalizes names by removing common prefixes and making it lowercase."""
+    if not name: return ""
+    name = str(name).lower()
+    # Common aliases
+    if name == "localentityhandle": return "localplayerhandle"
+
+    # Strip common prefixes
+    prefixes = ['dt_', 'm_', 'cl_', 'c_', 'p_', 'fl_', 'dw']
+    # Sort prefixes by length descending to match longest possible prefix first
+    prefixes.sort(key=len, reverse=True)
+
+    changed = True
+    while changed:
+        changed = False
+        for prefix in prefixes:
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+                changed = True
+                break
+
+    return name.replace("_", "").replace("!", "").replace("-", "").replace(" ", "")
+
 def load_offsets_ini(file_path_or_url):
     """
-    Loads offsets from an INI file (local or URL).
+    Loads offsets from an INI or JSON (Type-2) file (local or URL).
     """
-    parser = configparser.ConfigParser(strict=False)
+    content = ""
     if file_path_or_url.startswith('http://') or file_path_or_url.startswith('https://'):
         print(f"{ConsoleColors.BLUE}Fetching offsets from URL: {file_path_or_url}{ConsoleColors.RESET}")
         try:
             response = requests.get(file_path_or_url, timeout=10) 
             response.raise_for_status()  
-            parser.read_string(response.text)
-            print(f"{ConsoleColors.GREEN}Successfully fetched and parsed INI from URL.{ConsoleColors.RESET}")
-            return parser
+            content = response.text
         except requests.exceptions.HTTPError as e:
-            print(f"{ConsoleColors.RED}HTTP error fetching from URL: {file_path_or_url}. Status Code: {e.response.status_code}. Error: {e}{ConsoleColors.RESET}")
+            status_code = e.response.status_code if e.response is not None else "N/A"
+            print(f"{ConsoleColors.RED}HTTP error fetching from URL: {file_path_or_url}. Status Code: {status_code}. Error: {e}{ConsoleColors.RESET}")
             return None
-        except requests.exceptions.ConnectionError as e:
-            print(f"{ConsoleColors.RED}Connection error fetching from URL: {file_path_or_url}. Error: {e}{ConsoleColors.RESET}")
-            return None
-        except requests.exceptions.Timeout as e:
-            print(f"{ConsoleColors.RED}Timeout while fetching from URL: {file_path_or_url}. Error: {e}{ConsoleColors.RESET}")
-            return None
-        except requests.exceptions.RequestException as e:
-            print(f"{ConsoleColors.RED}Error fetching from URL: {file_path_or_url}. Error: {e}{ConsoleColors.RESET}")
-            return None
-        except configparser.Error as e:
-            print(f"{ConsoleColors.RED}Failed to parse INI data from URL: {file_path_or_url}. Error: {e}{ConsoleColors.RESET}")
-            return None
-        except Exception as e: 
-            print(f"{ConsoleColors.RED}An unexpected error occurred while processing URL {file_path_or_url}: {e}{ConsoleColors.RESET}")
+        except Exception as e:
+            print(f"{ConsoleColors.RED}Error fetching from URL: {e}{ConsoleColors.RESET}")
             return None
     else:
         print(f"{ConsoleColors.BLUE}Loading offsets from local file: {file_path_or_url}{ConsoleColors.RESET}")
-        try:
-            with open(file_path_or_url, 'r') as f:
-                parser.read_file(f)
-            print(f"{ConsoleColors.GREEN}Successfully loaded and parsed INI from local file.{ConsoleColors.RESET}")
-            return parser
-        except FileNotFoundError:
+        if not os.path.exists(file_path_or_url):
             print(f"{ConsoleColors.RED}Local INI file not found: {file_path_or_url}{ConsoleColors.RESET}")
             return None
-        except configparser.Error as e:
-            print(f"{ConsoleColors.RED}Failed to parse local INI file: {file_path_or_url}. Error: {e}{ConsoleColors.RESET}")
+        try:
+            with open(file_path_or_url, 'r') as f:
+                content = f.read()
+        except Exception as e:
+            print(f"{ConsoleColors.RED}Could not read local file: {e}{ConsoleColors.RESET}")
             return None
-        except IOError as e:
-            print(f"{ConsoleColors.RED}Could not read local INI file: {file_path_or_url}. Error: {e}{ConsoleColors.RESET}")
-            return None
-        except Exception as e: 
-            print(f"{ConsoleColors.RED}An unexpected error occurred while loading local INI {file_path_or_url}: {e}{ConsoleColors.RESET}")
-            return None
+
+    config_dict = {}
+
+    # Check for Type-2 JSON
+    if '{' in content and ('"Mics"' in content or '"RecvTable"' in content or '"weaponSettings"' in content):
+        try:
+            json_start = content.find('{')
+            json_data = json.loads(content[json_start:])
+            print(f"{ConsoleColors.GREEN}Detected Type-2 JSON format.{ConsoleColors.RESET}")
+
+            section_remap = {"Mics": "Miscellaneous", "weaponSettings": "WeaponSettings", "dataMap": "DataMap"}
+
+            for section, data in json_data.items():
+                remapped_section = section_remap.get(section, section)
+                if isinstance(data, dict):
+                    # Check for nested structures (like RecvTable.DT_BaseEntity)
+                    is_nested = any(isinstance(v, dict) for v in data.values())
+                    if is_nested:
+                        for sub_section, sub_data in data.items():
+                            full_section = f"{remapped_section}.{sub_section}"
+                            if full_section not in config_dict: config_dict[full_section] = {}
+                            if isinstance(sub_data, dict):
+                                for k, v in sub_data.items():
+                                    config_dict[full_section][k] = str(v)
+                            else:
+                                config_dict[full_section][sub_section] = str(sub_data)
+                    else:
+                        if remapped_section not in config_dict: config_dict[remapped_section] = {}
+                        for k, v in data.items():
+                            config_dict[remapped_section][k] = str(v)
+                else:
+                    if "Miscellaneous" not in config_dict: config_dict["Miscellaneous"] = {}
+                    config_dict["Miscellaneous"][remapped_section] = str(data)
+
+            if config_dict:
+                return config_dict
+        except Exception as e:
+            print(f"{ConsoleColors.YELLOW}Type-2 JSON parse attempt failed, trying INI: {e}{ConsoleColors.RESET}")
+
+    # Fallback to INI
+    try:
+        # Pre-process for weird INI quirks like "[]"
+        processed_content = content.replace("\n[]", "\n[EmptySection]")
+        # Handle sections with spaces like "[Mics] "
+        processed_content = re.sub(r'\[\s*(.+?)\s*\]', r'[\1]', processed_content)
+
+        parser = configparser.ConfigParser(strict=False, interpolation=None)
+        parser.read_string(processed_content)
+
+        # Convert to dict for uniform access
+        section_remap = {"Mics": "Miscellaneous", "weaponSettings": "WeaponSettings"}
+        for section in parser.sections():
+            remapped_section = section_remap.get(section, section)
+            if remapped_section not in config_dict: config_dict[remapped_section] = {}
+            for key, value in parser.items(section):
+                config_dict[remapped_section][key] = value
+        print(f"{ConsoleColors.GREEN}Successfully parsed as INI.{ConsoleColors.RESET}")
+        return config_dict
+    except Exception as e:
+        print(f"{ConsoleColors.RED}Failed to parse INI: {e}{ConsoleColors.RESET}")
+        return None
 
 
 def read_offsets_h(file_path):
@@ -85,6 +149,33 @@ def read_offsets_h(file_path):
         print(ConsoleColors.RED + f"An error occurred while reading {file_path}: {e}" + ConsoleColors.RESET)
         return None
 
+
+def find_offset_in_config(config, section_name, key_name):
+    """Finds an offset in the config with fuzzy matching for section and key."""
+    if not config: return None
+
+    # Potential sub-section in key_name (e.g., "CPlayer!lastVisibleTime")
+    if "!" in key_name or "." in key_name or ">" in key_name:
+        parts = re.split(r'[!.\->]+', key_name)
+        key_to_try = [key_name, parts[-1]]
+    else:
+        key_to_try = [key_name]
+
+    for kt in key_to_try:
+        normalized_target_section = normalize_name(section_name)
+        normalized_target_key = normalize_name(kt)
+
+        # Exact match attempt
+        if section_name in config and kt in config[section_name]:
+            return config[section_name][kt]
+
+        # Fuzzy matching
+        for config_section in config:
+            if normalize_name(config_section) == normalized_target_section:
+                for config_key in config[config_section]:
+                    if normalize_name(config_key) == normalized_target_key:
+                        return config[config_section][config_key]
+    return None
 
 def process_offsets_update(offset_h_lines, dump_file_config, current_date_str_param):
     """
@@ -106,25 +197,26 @@ def process_offsets_update(offset_h_lines, dump_file_config, current_date_str_pa
         keywords = re.findall(r'//\s*(\S+)', line_content)
         
         if keywords and re.match(r"\[", keywords[0]): # Potential offset key like [Section].Key
-            # Regex to parse "[Section].Key" format from the comment keyword
-            comment_pattern = re.compile(r'\[(.+?)\]\.(.+)')
+            # Regex to parse "[Section].Key" or "[Section]->Key" format from the comment keyword
+            comment_pattern = re.compile(r'\[(.+?)\][\.->]+(.+)')
             comment_match = comment_pattern.search(keywords[0])
             if comment_match:
                 section, keyword = comment_match.group(1), comment_match.group(2)
-                # Check if the parsed section and keyword exist in the INI configuration
-                if dump_file_config and section in dump_file_config and keyword in dump_file_config[section]:
-                    value = dump_file_config[section][keyword]
-                    # Replace the old offset value with the new one from INI
+                value = find_offset_in_config(dump_file_config, section, keyword)
+
+                if value:
+                    # Replace the old offset value with the new one from source
                     line_content = re.sub(offset_pattern, value, line_content, count=1)
                     # Update the "updated" date in the comment
-                    line_content = re.sub(date_pattern, "updated " + current_date_str_param, line_content, count=1)
+                    if date_pattern.search(line_content):
+                        line_content = re.sub(date_pattern, "updated " + current_date_str_param, line_content, count=1)
+                    else:
+                        line_content = line_content.rstrip() + " updated " + current_date_str_param
                 else:
                     # Section/key not found in INI, mark for reporting
                     not_found_lines_list.append(original_line)
             else:
                 # Comment started with "[" but didn't match the "[Section].Key" pattern.
-                # This is considered an unrecognized line that might need manual attention.
-                # Removed print statement from here, will be handled by report_results.
                 unrecognized_lines_list.append(original_line)
         elif not keywords: # No comment, or comment is empty or only whitespace
             # This line has no parsable comment keyword, so keep it as is.
@@ -132,14 +224,11 @@ def process_offsets_update(offset_h_lines, dump_file_config, current_date_str_pa
         elif keywords[0] == "Date": # Special keyword for overall date
             line_content = f"//Date {current_date_str_param}"
         elif keywords[0] == "GameVersion": # Special keyword for game version
-            try:
-                if dump_file_config and 'Miscellaneous' in dump_file_config and 'GameVersion' in dump_file_config['Miscellaneous']:
-                    line_content = f"//GameVersion = {dump_file_config['Miscellaneous']['GameVersion']}"
-                else:
-                     # 'Miscellaneous' section or 'GameVersion' key not in INI.
-                    not_found_lines_list.append(original_line)
-            except KeyError: # Should be caught by the check above, but as a safeguard.
-                not_found_lines_list.append(original_line) 
+            value = find_offset_in_config(dump_file_config, "Miscellaneous", "GameVersion")
+            if value:
+                line_content = f"//GameVersion = {value}"
+            else:
+                not_found_lines_list.append(original_line)
         else: # Comment keyword exists but is not recognized (e.g., not "[Section].Key", "Date", or "GameVersion")
             if line_content.strip(): # Avoid adding completely empty lines as unrecognized
                 unrecognized_lines_list.append(original_line)

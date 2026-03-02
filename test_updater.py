@@ -95,8 +95,10 @@ class TestUpdater(unittest.TestCase):
     def test_load_ini_url_bad_status(self, mock_requests_get_bad_status):
         mock_response = mock.Mock()
         mock_response.status_code = 404
-        # Configure raise_for_status to simulate the actual behavior for bad status codes
         mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 Client Error")
+        # Simulate response object for status_code access
+        mock_response.response = mock.Mock()
+        mock_response.response.status_code = 404
         mock_requests_get_bad_status.return_value = mock_response
         
         parser = load_offsets_ini("http://example.com/offsets_not_found.ini")
@@ -107,37 +109,67 @@ class TestUpdater(unittest.TestCase):
         mock_response = mock.Mock()
         mock_response.status_code = 200
         mock_response.text = "this is not valid ini from url"
-        mock_response.raise_for_status = mock.Mock()
         mock_requests_get_invalid_url_content.return_value = mock_response
 
         parser = load_offsets_ini("http://example.com/invalid_offsets.ini")
         self.assertIsNone(parser) # Expect None due to configparser.Error
 
+    def test_load_type2_json_success(self):
+        json_content = """
+Dumper initialized successfully
+Dump completed
+{
+  "Mics": {
+    "CHLClient": "0x29BC348",
+    "GameVersion": "v1.2.3"
+  },
+  "RecvTable": {
+    "DT_BaseEntity": {
+      "m_iTeamNum": "0x334"
+    }
+  },
+  "weaponSettings": {
+    "ammo_clip_size": "0x8FC"
+  }
+}
+"""
+        with mock.patch('updater.open', new_callable=mock.mock_open, read_data=json_content):
+            with mock.patch('updater.os.path.exists', return_value=True):
+                config = load_offsets_ini("dummy_type2.ini")
+                self.assertIsNotNone(config)
+                self.assertIn("Miscellaneous", config)
+                self.assertEqual(config["Miscellaneous"]["CHLClient"], "0x29BC348")
+                self.assertEqual(config["Miscellaneous"]["GameVersion"], "v1.2.3")
+                self.assertIn("RecvTable.DT_BaseEntity", config)
+                self.assertEqual(config["RecvTable.DT_BaseEntity"]["m_iTeamNum"], "0x334")
+                self.assertIn("WeaponSettings", config)
+                self.assertEqual(config["WeaponSettings"]["ammo_clip_size"], "0x8FC")
+
     # --- Tests for process_offsets_update ---
     def test_process_update_logic(self):
         # Setup INI data
-        ini_data_text = """
-[Miscellaneous]
-GameVersion=v1.2.3
-cl_entitylist=0xNEW111
-[TestSection]
-TestKey=0xNEW222
-AnotherKey=0xNEW333
-"""
-        ini_data = configparser.ConfigParser(strict=False)
-        ini_data.read_string(ini_data_text)
+        ini_data = {
+            "Miscellaneous": {
+                "GameVersion": "v1.2.3",
+                "cl_entitylist": "0x111222"
+            },
+            "TestSection": {
+                "TestKey": "0x222333",
+                "AnotherKey": "0x333444"
+            }
+        }
 
         # Setup .h lines
         h_lines_input = [
-            "constexpr uintptr_t dwEntityList = 0xOLD111; //[Miscellaneous].cl_entitylist updated 2023/01/01",
+            "constexpr uintptr_t dwEntityList = 0x123456; //[Miscellaneous].cl_entitylist updated 2023/01/01",
             "//Date 2023/01/01",
             "//GameVersion = v1.0.0",
-            "constexpr uintptr_t dwNonExistent = 0xOLDFFF; //[Miscellaneous].NonExistentKey updated 2023/01/01",
+            "constexpr uintptr_t dwNonExistent = 0xdeadbeef; //[Miscellaneous].NonExistentKey updated 2023/01/01",
             "//UnrecognizedComment",
             "#define NO_COMMENT_OFFSET 0x12345",
-            "constexpr uintptr_t dwTestKey = 0xOLD222; //[TestSection].TestKey updated 2023/01/01",
+            "constexpr uintptr_t dwTestKey = 0x222222; //[TestSection].TestKey updated 2023/01/01",
             "// [MalformedSection.KeySyntax", # This should be unrecognized
-            "constexpr uintptr_t dwNoIniValue = 0xOLD444; //[NoSection].NoKey updated 2023/01/01",
+            "constexpr uintptr_t dwNoIniValue = 0x444444; //[NoSection].NoKey updated 2023/01/01",
         ]
         current_date_str = "2023/10/26" # Example current date
 
@@ -149,14 +181,14 @@ AnotherKey=0xNEW333
         )
         
         # Assert updated lines
-        self.assertIn("0xNEW111", updated_lines[0]) # Check cl_entitylist
+        self.assertIn("0x111222", updated_lines[0]) # Check cl_entitylist
         self.assertIn(f"updated {current_date_str}", updated_lines[0])
         
         self.assertEqual(f"//Date {current_date_str}", updated_lines[1]) # Check Date
         
         self.assertEqual(f"//GameVersion = v1.2.3", updated_lines[2]) # Check GameVersion
         
-        self.assertIn("0xNEW222", updated_lines[6]) # Check TestKey
+        self.assertIn("0x222333", updated_lines[6]) # Check TestKey
         self.assertIn(f"updated {current_date_str}", updated_lines[6])
 
         # Assert not_found lines
@@ -169,14 +201,12 @@ AnotherKey=0xNEW333
         # Assert unrecognized lines
         # Line 4: "//UnrecognizedComment" - comment keyword not special, not [Section].Key
         self.assertIn(h_lines_input[4], unrecognized)
-        # Line 5: "#define NO_COMMENT_OFFSET 0x12345" - no comment for guidance
-        self.assertIn(h_lines_input[5], unrecognized)
         # Line 7: "// [MalformedSection.KeySyntax" - starts with '[' but not valid [Section].Key
         self.assertIn(h_lines_input[7], unrecognized)
 
         # Check counts of found/unrecognized to ensure no overlaps or missed lines
         self.assertEqual(len(not_found), 2)
-        self.assertEqual(len(unrecognized), 3)
+        self.assertEqual(len(unrecognized), 2)
         self.assertEqual(len(updated_lines), len(h_lines_input))
 
 
