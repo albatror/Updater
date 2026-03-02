@@ -22,9 +22,46 @@ current_date = datetime.now()
 date_str = current_date.strftime("%Y/%m/%d")
 
 
+def parse_custom_format(content):
+    """
+    Parses [Section]Key Value format.
+    Example: [Buttons]+attack 3f38bd0
+    """
+    result = {}
+    # Regex to match: [Section]Key Value
+    pattern = re.compile(r'\[([^\]]+)\]\s*(\S+)\s+(\S+)')
+
+    found = False
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith('//') or line.startswith('#'):
+            continue
+
+        match = pattern.match(line)
+        if match:
+            section, key, value = match.groups()
+
+            # Normalize section: remove leading dot if present
+            if section.startswith('.'):
+                section = section[1:]
+
+            if section not in result:
+                result[section] = {}
+
+            # Ensure hex prefix
+            if re.match(r'^[0-9a-fA-F]+$', value):
+                if not value.lower().startswith('0x'):
+                    value = '0x' + value
+
+            result[section][key.lower()] = value
+            found = True
+
+    return result if found else None
+
+
 def load_offsets_data(file_path_or_url):
     """
-    Loads offsets from an INI or JSON file (local or URL).
+    Loads offsets from an INI, JSON or custom format file (local or URL).
     Returns a dictionary of offsets.
     """
     content = ""
@@ -44,13 +81,23 @@ def load_offsets_data(file_path_or_url):
             print(f"{ConsoleColors.RED}Error loading local file: {file_path_or_url}. Error: {e}{ConsoleColors.RESET}")
             return None
 
-    # Try parsing as INI first
+    # Try custom [Section]Key Value format first
+    # This is because standard INI parser might misinterpret this format as keys with empty values
+    custom_data = parse_custom_format(content)
+    if custom_data:
+        print(f"{ConsoleColors.GREEN}Parsed as custom [Section]Key Value format.{ConsoleColors.RESET}")
+        return custom_data
+
+    # Try parsing as INI
     parser = configparser.ConfigParser(strict=False)
     try:
         parser.read_string(content)
         if parser.sections():
-            print(f"{ConsoleColors.GREEN}Parsed as INI format.{ConsoleColors.RESET}")
-            return {section: {k.lower(): v for k, v in parser.items(section)} for section in parser.sections()}
+            # Check if it actually has values, otherwise it might be a misparsed custom format
+            has_values = any(any(v for v in parser.items(s)) for s in parser.sections())
+            if has_values:
+                print(f"{ConsoleColors.GREEN}Parsed as INI format.{ConsoleColors.RESET}")
+                return {section: {k.lower(): v for k, v in parser.items(section)} for section in parser.sections()}
     except Exception:
         pass
 
@@ -119,7 +166,7 @@ def normalize_name(s):
         # Lowercase and remove all non-alphanumeric characters
         p_norm = re.sub(r'[^a-z0-9]', '', part.lower())
         # Remove common prefixes
-        prefixes = ["cplayer", "cweaponx", "cbaseanimating", "datamap", "recvtable", "dt", "cl", "fl", "m", "c", "p"]
+        prefixes = ["cplayer", "cweaponx", "cbaseanimating", "datamap", "recvtable", "dt", "cl", "fl", "m", "c", "p", "in"]
         while True:
             matched = False
             for p in prefixes:
@@ -313,6 +360,18 @@ def report_results(not_found_lines, unrecognized_lines, h_file_written_successfu
     print("----------------------")
 
 
+def merge_dicts(dict1, dict2):
+    """Deep merges two dictionaries of offsets."""
+    if not dict2:
+        return dict1
+    for section, keys in dict2.items():
+        if section not in dict1:
+            dict1[section] = {}
+        for key, value in keys.items():
+            dict1[section][key] = value
+    return dict1
+
+
 def update_offsets_orchestrator():
     """
     Orchestrates the offset update process using helper functions, with interactive input.
@@ -335,7 +394,7 @@ def update_offsets_orchestrator():
     else:
         print(f"{ConsoleColors.GREEN}Found '{offset_h_path}' in the current directory.{ConsoleColors.RESET}")
     
-    offset_ini_path_or_url = None
+    offset_sources = []
     while True:
         ini_source_choice = input(f"Update from {ConsoleColors.BOLD}local{ConsoleColors.RESET} file or from a {ConsoleColors.BOLD}URL{ConsoleColors.RESET}? (local/url, press Enter to cancel): ").strip().lower()
         if not ini_source_choice:
@@ -343,41 +402,48 @@ def update_offsets_orchestrator():
             return False
 
         if ini_source_choice == 'local':
-            default_ini_path = 'offsets.ini'
-            if os.path.exists(default_ini_path) and os.path.isfile(default_ini_path):
-                print(f"{ConsoleColors.GREEN}Found '{default_ini_path}' in the current directory.{ConsoleColors.RESET}")
-                use_default = input(f"Use '{default_ini_path}'? (y/n, press Enter for y): ").strip().lower()
-                if not use_default or use_default == 'y':
-                    offset_ini_path_or_url = default_ini_path
+            local_files = ['offsets.ini', '_buttons.ini', '_convars.ini', '_offsets.ini']
+            found_files = [f for f in local_files if os.path.exists(f) and os.path.isfile(f)]
+
+            if found_files:
+                print(f"{ConsoleColors.GREEN}Found local files: {', '.join(found_files)}{ConsoleColors.RESET}")
+                use_found = input(f"Use these files? (y/n, press Enter for y): ").strip().lower()
+                if not use_found or use_found == 'y':
+                    offset_sources = found_files
                     break
 
             user_ini_path = input(f"Enter the full path to your offsets file (or press Enter to cancel): ").strip()
             if not user_ini_path:
                 print(ConsoleColors.RED + "Operation cancelled by user." + ConsoleColors.RESET)
                 return False
-            offset_ini_path_or_url = user_ini_path
+            offset_sources = [user_ini_path]
             break
         elif ini_source_choice == 'url':
             user_url = input("Please enter the URL for the offsets file (or press Enter to cancel): ").strip()
             if not user_url:
                 print(ConsoleColors.RED + "Operation cancelled by user." + ConsoleColors.RESET)
                 return False
-            offset_ini_path_or_url = user_url
+            offset_sources = [user_url]
             break
         else:
             print(ConsoleColors.RED + "Invalid choice. Please type 'local' or 'url'." + ConsoleColors.RESET)
 
-    if not offset_ini_path_or_url: 
+    if not offset_sources:
         print(ConsoleColors.RED + "Offset source is required. Aborting." + ConsoleColors.RESET)
         return False
 
     print(f"\n{ConsoleColors.CYAN}Starting update process...{ConsoleColors.RESET}")
     print(f"Using H file: '{offset_h_path}'")
-    print(f"Using source: '{offset_ini_path_or_url}'")
 
-    dump_data = load_offsets_data(offset_ini_path_or_url)
-    if dump_data is None:
-        print(ConsoleColors.RED + "Failed to load offset data. Aborting update." + ConsoleColors.RESET)
+    dump_data = {}
+    for source in offset_sources:
+        print(f"Loading source: '{source}'")
+        data = load_offsets_data(source)
+        if data:
+            merge_dicts(dump_data, data)
+
+    if not dump_data:
+        print(ConsoleColors.RED + "Failed to load any offset data. Aborting update." + ConsoleColors.RESET)
         return False 
 
     offset_h_original_lines = read_offsets_h(offset_h_path)

@@ -10,7 +10,7 @@ import json
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 try:
-    from updater import process_offsets_update, load_offsets_data, ConsoleColors
+    from updater import process_offsets_update, load_offsets_data, ConsoleColors, merge_dicts
 except ModuleNotFoundError as e:
     print(f"Failed to import from updater: {e}. Ensure updater.py is in the Python path or same directory.")
     sys.exit(1)
@@ -66,6 +66,30 @@ class TestUpdater(unittest.TestCase):
         self.assertIsNotNone(data)
         self.assertIn("WeaponSettings", data)
         self.assertEqual(data["WeaponSettings"]["active_crosshair_count"], "0x280")
+
+    def test_load_custom_format_success(self):
+        content = """
+[Buttons]+attack 3f38bd0
+[ConVars]Allow_auto_Party 202af30
+[.Miscellaneous]ClientState 3043e0
+"""
+        with mock.patch('updater.open', mock.mock_open(read_data=content)):
+            data = load_offsets_data("dummy.ini")
+            self.assertIsNotNone(data)
+            self.assertIn("Buttons", data)
+            self.assertEqual(data["Buttons"]["+attack"], "0x3f38bd0")
+            self.assertIn("ConVars", data)
+            self.assertEqual(data["ConVars"]["allow_auto_party"], "0x202af30")
+            self.assertIn("Miscellaneous", data)
+            self.assertEqual(data["Miscellaneous"]["clientstate"], "0x3043e0")
+
+    def test_merge_dicts(self):
+        dict1 = {"Sec1": {"key1": "val1"}}
+        dict2 = {"Sec1": {"key2": "val2"}, "Sec2": {"key3": "val3"}}
+        merged = merge_dicts(dict1, dict2)
+        self.assertEqual(merged["Sec1"]["key1"], "val1")
+        self.assertEqual(merged["Sec1"]["key2"], "val2")
+        self.assertEqual(merged["Sec2"]["key3"], "val3")
 
     @mock.patch('updater.requests.get')
     def test_load_ini_url_success(self, mock_requests_get):
