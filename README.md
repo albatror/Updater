@@ -17,19 +17,19 @@ This script is designed to update offset values and related information within a
 *   Python 3.x (developed and tested with Python 3.6+)
 *   `requests` library: This is required **only if you plan to use the URL feature** for fetching `offsets.ini`. It can be installed via pip:
     ```bash
-    pip install requests
+    pip install pyyaml toml requests
     ```
 
 ## How to Run
 1.  Ensure you have Python 3 installed on your system.
 2.  If you intend to fetch `offsets.ini` from a URL, make sure you have the `requests` library installed:
     ```bash
-    pip install requests
+    pip install pyyaml toml requests
     ```
 3.  Place the `updater.py` script in your desired directory. It's often convenient to have it in the same directory as your `offsets.h` and `offsets.ini` files, but not strictly necessary due to the interactive prompts.
 4.  Open your terminal or command prompt, navigate to the directory where `updater.py` is located, and run the script:
     ```bash
-    python updater.py
+    python updaterV2.py
     ```
 5.  The script will then guide you through the process:
     *   **`offsets.h` location:**
