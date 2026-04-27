@@ -7,11 +7,11 @@ This script is designed to update offset values and related information within a
 *   **Interactive Prompts:** The script interactively guides the user to locate necessary files (`offsets.h`, `offsets.ini`) if they are not found in the default locations (i.e., the same directory as the script).
 *   **Flexible INI Source:** The `offsets.ini` data can be sourced from:
     *   A local `offsets.ini` file.
-    *   A URL pointing to a raw `offsets.ini` content (e.g., from Pastebin, GitHub raw view, or any direct text link).
+    (IN COMING) *   A URL pointing to a raw `offsets.ini` content (e.g., from Pastebin, GitHub raw view, or any direct text link).
 *   **Date Tracking:** Automatically updates date stamps in comments next to updated values in `offsets.h`.
 *   **Game Version Update:** Can update a specific `//GameVersion = ...` comment in `offsets.h` if a `GameVersion` key is present in the `[Miscellaneous]` section of the `offsets.ini` file.
 *   **Detailed Reporting:** Provides a summary of which lines were updated, which keys were not found in the INI source, and which lines in the `.h` file were not recognized for processing.
-*   **Colored Console Output:** Uses ANSI escape codes for colored console output (warnings, errors, success messages) for better readability on supported terminals.
+*   **Colored visuals Output:** Uses ANSI escape codes for colored console output (warnings, errors, success messages) for better readability on supported terminals.
 
 ![Showcase](https://github.com/albatror/Updater/blob/main/INTERFACE.png))
 
@@ -29,7 +29,7 @@ This script is designed to update offset values and related information within a
     pip install pyyaml toml requests
     ```
 3.  Place the `updater.py` script in your desired directory. It's often convenient to have it in the same directory as your `offsets.h` and `offsets.ini` files, but not strictly necessary due to the interactive prompts.
-4.  Open your terminal or command prompt, navigate to the directory where `updater.py` is located, and run the script:
+4.  Open your terminal or command prompt, navigate to the directory where `updaterV2.py` is located, and run the script:
     ```bash
     python updaterV2.py
     ```
@@ -88,17 +88,10 @@ This is a standard INI configuration file that provides the new values for the o
     *   Sections (e.g., `[Client]`, `[Engine]`) and Keys (e.g., `dwEntityList`) should match those specified in the `offsets.h` comments.
     *   Values are typically hexadecimal (e.g., `0xABCDEF`).
 
-## Testing
-The script suite includes a unit test file, `test_updater.py`, designed to verify the core functionality of `updater.py`. This includes:
-*   Loading and parsing local and remote (URL-based) `offsets.ini` files.
+The script suite includes 
+*   Loading and parsing local  (IN COMING) * and remote (URL-based) `offsets.ini` files.
 *   Correctly processing lines from `offsets.h` for updates.
 *   Handling various error conditions and edge cases.
-
-To run the tests, navigate to the script's directory in your terminal and execute:
-```bash
-python -m unittest test_updater.py
-```
-It is highly recommended to run these tests after making any modifications to `updater.py` to ensure its integrity and correctness.
 
 ## Error Reporting & Output
 The script provides detailed feedback during its operation:
