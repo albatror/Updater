@@ -13,6 +13,8 @@ This script is designed to update offset values and related information within a
 *   **Detailed Reporting:** Provides a summary of which lines were updated, which keys were not found in the INI source, and which lines in the `.h` file were not recognized for processing.
 *   **Colored Console Output:** Uses ANSI escape codes for colored console output (warnings, errors, success messages) for better readability on supported terminals.
 
+![Showcase](https://github.com/albatror/Updater/blob/main/INTERFACE.png))
+
 ## Requirements
 *   Python 3.x (developed and tested with Python 3.6+)
 *   `requests` library: This is required **only if you plan to use the URL feature** for fetching `offsets.ini`. It can be installed via pip:
